@@ -10,7 +10,7 @@ ENV https_proxy "http://proxy.cat.com:80"
 
 RUN python3 -m pip install --upgrade pip
 
-RUN pip3 install tensorflow-gpu==2.0
+RUN pip3 install tensorboard
 
 RUN pip3 install setuptools>=41.0.0
 
