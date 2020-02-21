@@ -8,12 +8,18 @@ from apex.parallel import DistributedDataParallel as DDP
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 
+import mlflow
+
+from .draw_bounding_boxes import draw_bounding_boxes
 from .data import DataIterator
 from .dali import DaliDataIterator
 from .model import Model
 from .utils import Profiler
 
-def infer(model, path, detections_file, resize, max_size, batch_size, mixed_precision=True, is_master=True, world=0, annotations=None, use_dali=True, is_validation=False, verbose=True):
+
+def infer(model, path, detections_file, resize, max_size, batch_size,
+          mixed_precision=True, is_master=True, world=0, annotations=None, use_dali=True,
+          is_validation=False, verbose=True, mlflow=None):
     'Run inference on images from path'
 
     backend = 'pytorch' if isinstance(model, Model) or isinstance(model, DDP) else 'tensorrt'
@@ -138,5 +144,28 @@ def infer(model, path, detections_file, resize, max_size, batch_size, mixed_prec
                     coco_eval.evaluate()
                     coco_eval.accumulate()
                 coco_eval.summarize()
+                if mlflow:
+                    import skimage.io as io
+                    try:
+                        with open('/summaries/summary.txt', 'w') as f:
+                            with redirect_stdout(f):
+                                coco_eval.summarize()
+                    except Exception as e:
+                        print(e)
+                    try:
+                        imgIds = sorted(data_iterator.coco.getImgIds())
+                        imgId = imgIds[0]
+                        COCOeval.params.imgIds = imgIds
+                        categories = data_iterator.coco.loadCats(
+                            data_iterator.coco.getCatIds())
+                        for i in range(10):
+                            img = data_iterator.coco.loadImgs(imgId)[0]
+                            annIds = data_iterator.coco.getAnnIds(imgIds=img['id'], iscrowd=None)
+                            anns = data_iterator.coco.loadAnns(annIds)
+                            I = io.imread(img['coco_url'])
+
+                            draw_bounding_boxes(I, anns, categories, i)
+                    except Exception as e:
+                        print(e)
         else:
             print('No detections!')
